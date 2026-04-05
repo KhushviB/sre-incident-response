@@ -1,9 +1,6 @@
-# run this in PowerShell to prepend the metadata
-$existing = Get-Content README.md -Raw
-$metadata = @"
 ---
 title: SRE Incident Response
-emoji: 🚨
+emoji: ??
 colorFrom: red
 colorTo: blue
 sdk: docker
@@ -13,9 +10,6 @@ tags:
   - sre
   - reinforcement-learning
 ---
-
-"@
-Set-Content README.md ($metadata + $existing)
 
 # SRE Incident Response — OpenEnv
 
