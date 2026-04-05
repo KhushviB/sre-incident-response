@@ -1,0 +1,259 @@
+name: sre-incident-response
+version: "1.0.0"
+description: >
+  An OpenEnv environment that simulates real-world SRE (Site Reliability Engineering)
+  incident response. An AI agent acts as an on-call engineer, diagnosing and fixing
+  cascading server failures of increasing complexity across three tasks.
+  The agent interacts with a simulated Linux server through structured actions
+  (kill processes, fix configs, set env vars, restart services) and receives
+  partial-credit rewards after every step based on how healthy the server is.
+
+author: "SRE-OpenEnv"
+license: MIT
+tags:
+  - openenv
+  - sre
+  - incident-response
+  - devops
+  - real-world
+  - partial-rewards
+
+# ── Environment endpoints ────────────────────────────────────────────────────
+base_url: "${SPACE_URL}"       
+
+endpoints:
+  reset:
+    method: POST
+    path: /reset
+    description: >
+      Start a new episode. Wipes old server state and builds a fresh broken
+      server world for the specified task. Returns first observation.
+    request:
+      task_id:
+        type: integer
+        required: false
+        default: 1
+        description: "1 = easy, 2 = medium, 3 = hard"
+
+  step:
+    method: POST
+    path: /step
+    description: >
+      Agent sends one action. Environment applies it, scores the result,
+      and returns updated observation + reward + done flag.
+    request:
+      action_type:
+        type: string
+        required: true
+        enum:
+          - read_logs
+          - list_processes
+          - kill_process
+          - restart_service
+          - fix_config
+          - clear_disk
+          - set_env_var
+          - check_health
+      pid:
+        type: integer
+        required: false
+        description: "Required when action_type=kill_process"
+      service:
+        type: string
+        required: false
+        description: "Required when action_type=restart_service (nginx|database|app)"
+      config_key:
+        type: string
+        required: false
+        description: "Required when action_type=fix_config"
+      config_value:
+        type: string
+        required: false
+        description: "Required when action_type=fix_config"
+      env_key:
+        type: string
+        required: false
+        description: "Required when action_type=set_env_var"
+      env_value:
+        type: string
+        required: false
+        description: "Required when action_type=set_env_var"
+
+  state:
+    method: GET
+    path: /state
+    description: >
+      Returns a full snapshot of the current environment state.
+      Used by judges to inspect server internals between steps.
+
+  health:
+    method: GET
+    path: /health
+    description: "Liveness check. Must return HTTP 200."
+
+# ── Observation space ────────────────────────────────────────────────────────
+observation_space:
+  type: object
+  fields:
+    message:
+      type: string
+      description: "Human-readable situation description sent to the agent"
+    nginx_status:
+      type: string
+      enum: [running, stopped, crashed, misconfigured]
+    memory_usage:
+      type: float
+      range: [0.0, 100.0]
+      description: "Server memory usage as a percentage"
+    disk_usage:
+      type: float
+      range: [0.0, 100.0]
+      description: "Disk usage as a percentage"
+    db_status:
+      type: string
+      enum: [running, stopped, connection_failed]
+    http_status:
+      type: integer
+      description: "Last HTTP health check response code. null if not yet checked."
+    processes:
+      type: array
+      items:
+        pid: integer
+        name: string
+        cpu_percent: float
+        mem_percent: float
+        status: string
+    logs:
+      type: string
+      description: "Most recent server log output"
+    env_vars:
+      type: object
+      description: "Current environment variables on the server"
+    config:
+      type: object
+      description: "Current server config values (port, worker_count, etc)"
+    step_number:
+      type: integer
+    task_id:
+      type: integer
+
+# ── Action space ─────────────────────────────────────────────────────────────
+action_space:
+  type: object
+  required:
+    - action_type
+  actions:
+    read_logs:
+      description: "Read current server log output. No state change."
+    list_processes:
+      description: "List all running processes with memory and CPU usage."
+    kill_process:
+      description: "Terminate a process by PID."
+      required_fields: [pid]
+    restart_service:
+      description: "Restart a named service (nginx, database, app)."
+      required_fields: [service]
+    fix_config:
+      description: "Change a server config value."
+      required_fields: [config_key, config_value]
+    clear_disk:
+      description: "Delete old rotated log files to free disk space."
+    set_env_var:
+      description: "Set an environment variable to a new value."
+      required_fields: [env_key, env_value]
+    check_health:
+      description: "Run an HTTP health check and get the response code."
+
+# ── Reward space ─────────────────────────────────────────────────────────────
+reward_space:
+  type: float
+  range: [0.0, 1.0]
+  description: >
+    Partial-credit reward after every step. Reflects how healthy the server
+    is based on independent per-criterion scores that sum to 1.0.
+    Score increases with each successful fix. Never binary.
+  fields:
+    value:
+      type: float
+      range: [0.0, 1.0]
+    reason:
+      type: string
+      description: "Human-readable explanation of current score"
+    breakdown:
+      type: object
+      description: "Per-criterion scores showing exactly what earned what"
+    is_improvement:
+      type: boolean
+      description: "True if this step improved the score over the previous step"
+
+# ── Tasks ────────────────────────────────────────────────────────────────────
+tasks:
+  - id: 1
+    name: memory-leak-fix
+    difficulty: easy
+    max_steps: 10
+    target_score: 0.8
+    description: >
+      A rogue process (memory_hog) has consumed 95% of server memory,
+      causing nginx to crash. The agent must identify the bad process,
+      kill it, restart nginx, and verify HTTP 200.
+    grader:
+      criteria:
+        bad_process_gone: 0.10
+        memory_normal:    0.30
+        nginx_running:    0.40
+        http_ok:          0.20
+
+  - id: 2
+    name: cascading-500-errors
+    difficulty: medium
+    max_steps: 15
+    target_score: 0.5
+    description: >
+      Three simultaneous failures causing HTTP 500 errors: a memory-leaking
+      app_worker process, nginx proxying to the wrong port (9999 instead of 8080),
+      and APP_MODE set to debug instead of production.
+    grader:
+      criteria:
+        memory_normal:    0.20
+        bad_process_gone: 0.10
+        nginx_port_fixed: 0.20
+        app_mode_fixed:   0.15
+        nginx_running:    0.20
+        http_ok:          0.15
+
+  - id: 3
+    name: multi-failure-recovery
+    difficulty: hard
+    max_steps: 20
+    target_score: 0.25
+    description: >
+      Five cascading failures causing a full production outage: disk at 98%
+      (blocking DB writes), wrong DB_HOST env var, APP_ENV set to staging,
+      nginx on wrong port with too few workers, and a runaway cron process
+      consuming 85% memory. Disk must be cleared before DB can reconnect.
+    grader:
+      criteria:
+        disk_cleared:       0.15
+        db_host_fixed:      0.15
+        db_connected:       0.10
+        app_env_fixed:      0.10
+        nginx_port_fixed:   0.15
+        worker_count_fixed: 0.10
+        runaway_gone:       0.10
+        memory_normal:      0.10
+        http_ok:            0.05
+
+runtime:
+  max_inference_time_seconds: 1200   # 20 minutes
+  max_vcpu: 2
+  max_memory_gb: 8
+  python_version: "3.11"
+
+# ── Baseline scores (reproduced by inference.py) ──────────────────────────────
+baseline:
+  model: "openai/gpt-oss-20b"
+  scores:
+    task_1_easy:   1.00     # filled in after running inference.py
+    task_2_medium: 1.00     # filled in after running inference.py
+    task_3_hard:   1.00     # filled in after running inference.py

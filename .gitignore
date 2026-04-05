@@ -1,0 +1,3 @@
+*.pyc
+sre-incident-response/
+__pycache__
