@@ -1,0 +1,16 @@
+version = 1
+requires-python = ">=3.11"
+
+[[package]]
+name = "sre-incident-response"
+version = "1.0.0"
+source = { editable = "." }
+dependencies = [
+  { name = "fastapi" },
+  { name = "uvicorn" },
+  { name = "pydantic" },
+  { name = "openai" },
+  { name = "requests" },
+  { name = "pyyaml" },
+  { name = "openenv-core" },
+]
