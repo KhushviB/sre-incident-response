@@ -375,14 +375,13 @@ def run_episode(client: OpenAI, task_id: int) -> Dict[str, Any]:
     }
 
 def main() -> None:
-    if not API_KEY:
-        print(
-            "ERROR: set HF_TOKEN or API_KEY before running",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-
-    client  = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
+    try:
+        client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
+    except Exception as e:
+        for task_name in ["memory-leak-fix", "cascading-500-errors", "multi-failure-recovery"]:
+            log_start(task=task_name, model=MODEL_NAME)
+            log_end(success=False, steps=0, score=0.0, rewards=[0.0])
+        return
     results = []
 
     for task_id in [1, 2, 3]:
@@ -414,4 +413,8 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        print(f"[END] success=false steps=0 score=0.000 rewards=", flush=True)
+        sys.exit(0)
