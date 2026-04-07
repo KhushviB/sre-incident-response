@@ -35,7 +35,7 @@ from typing import Dict, List, Optional, Any
 from openai import OpenAI
 
 
-API_KEY = os.getenv("HF_TOKEN") or os.getenv("API_KEY") or "dummy-key"
+API_KEY      = os.environ.get("API_KEY") or os.environ.get("HF_TOKEN") or "dummy-key"
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
 MODEL_NAME   = os.getenv("MODEL_NAME",   "openai/gpt-oss-20b")
 ENV_URL      = os.getenv("ENV_URL",      "http://localhost:7860")
@@ -376,7 +376,10 @@ def run_episode(client: OpenAI, task_id: int) -> Dict[str, Any]:
 
 def main() -> None:
     try:
-        client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
+        client = OpenAI(
+            base_url=os.environ.get("API_BASE_URL") or API_BASE_URL,
+            api_key=os.environ.get("API_KEY") or API_KEY,
+        )
     except Exception as e:
         for task_name in ["memory-leak-fix", "cascading-500-errors", "multi-failure-recovery"]:
             log_start(task=task_name, model=MODEL_NAME)
