@@ -35,7 +35,7 @@ from typing import Dict, List, Optional, Any
 from openai import OpenAI
 
 
-API_KEY      = os.getenv("HF_TOKEN") or os.getenv("API_KEY")
+API_KEY = os.getenv("HF_TOKEN") or os.getenv("API_KEY") or "dummy-key"
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
 MODEL_NAME   = os.getenv("MODEL_NAME",   "openai/gpt-oss-20b")
 ENV_URL      = os.getenv("ENV_URL",      "http://localhost:7860")
