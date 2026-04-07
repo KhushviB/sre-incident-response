@@ -404,31 +404,8 @@ def main() -> None:
     results = []
 
     for task_id in [1, 2, 3]:
-        print(f"\n{'='*56}", flush=True)
-        print(f"  Running Task {task_id}", flush=True)
-        print(f"{'='*56}", flush=True)
         result = run_episode(client, task_id)
         results.append(result)
-        print(
-            f"\n  Task {task_id} complete — "
-            f"score={result['score']:.3f} "
-            f"steps={result['steps']} "
-            f"success={result['success']}",
-            flush=True,
-        )
-
-    print(f"\n{'='*56}", flush=True)
-    print("  BASELINE SUMMARY", flush=True)
-    print(f"{'='*56}", flush=True)
-    for r in results:
-        print(
-            f"  task {r['task_id']}  {r['task_name']:<32} "
-            f"score={r['score']:.3f}",
-            flush=True,
-        )
-    avg = sum(r["score"] for r in results) / len(results)
-    print(f"\n  average score : {avg:.3f}", flush=True)
-    print(f"{'='*56}", flush=True)
 
 
 if __name__ == "__main__":
