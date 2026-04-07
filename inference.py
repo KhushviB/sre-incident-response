@@ -303,13 +303,29 @@ def _smart_fallback(obs: Dict[str, Any], history: List[str]) -> Dict[str, Any]:
     return {"action_type": "check_health"}
 
 def run_episode(client: OpenAI, task_id: int) -> Dict[str, Any]:
-    """Runs a full episode for one task. Returns summary dict."""
 
-    reset_data = env_reset(task_id)
-    task_name  = reset_data["task_name"]
-    obs        = reset_data["observation"]
+    task_names = {
+        1: "memory-leak-fix",
+        2: "cascading-500-errors",
+        3: "multi-failure-recovery",
+    }
+    task_name = task_names.get(task_id, f"task-{task_id}")
 
     log_start(task=task_name, model=MODEL_NAME)
+
+    try:
+        reset_data = env_reset(task_id)
+        obs        = reset_data["observation"]
+    except Exception as e:
+        log_end(success=False, steps=0, score=0.0, rewards=[0.0])
+        return {
+            "task_id":   task_id,
+            "task_name": task_name,
+            "steps":     0,
+            "score":     0.0,
+            "success":   False,
+            "rewards":   [0.0],
+        }
 
     rewards:      List[float] = []
     history:      List[str]   = []
@@ -328,11 +344,11 @@ def run_episode(client: OpenAI, task_id: int) -> Dict[str, Any]:
         )
 
         try:
-            result       = env_step(action_dict)
-            obs          = result["observation"]
-            reward_val   = result["reward"]["value"]
+            result        = env_step(action_dict)
+            obs           = result["observation"]
+            reward_val    = result["reward"]["value"]
             last_improved = result["reward"]["is_improvement"]
-            done         = result["done"]
+            done          = result["done"]
         except Exception as e:
             reward_val    = last_reward
             last_improved = False
