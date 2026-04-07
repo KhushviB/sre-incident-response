@@ -38,7 +38,7 @@ from openai import OpenAI
 API_KEY      = os.environ.get("API_KEY", os.environ.get("HF_TOKEN", "dummy-key"))
 API_BASE_URL = os.environ.get("API_BASE_URL", "https://router.huggingface.co/v1")
 MODEL_NAME   = os.environ.get("MODEL_NAME",   "openai/gpt-oss-20b")
-ENV_URL      = os.environ.get("ENV_URL",      "http://localhost:7860")
+ENV_URL      = os.environ.get("ENV_URL",      "https://khushvi-sre-incident-response.hf.space")
 BENCHMARK    = "sre-incident-response"
 
 MAX_STEPS   = 15     # hard cap per episode
@@ -380,11 +380,11 @@ def main() -> None:
             base_url=os.environ["API_BASE_URL"],
             api_key=os.environ["API_KEY"],
         )
-    except Exception as e:
-        for task_name in ["memory-leak-fix", "cascading-500-errors", "multi-failure-recovery"]:
-            log_start(task=task_name, model=MODEL_NAME)
-            log_end(success=False, steps=0, score=0.0, rewards=[0.0])
-        return
+    except KeyError:
+        client = OpenAI(
+            base_url=API_BASE_URL,
+            api_key=API_KEY,
+        )
     results = []
 
     for task_id in [1, 2, 3]:
