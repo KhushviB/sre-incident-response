@@ -12,7 +12,7 @@ MANDATORY RULES (competition spec):
 ENVIRONMENT VARIABLES (set before running):
   HF_TOKEN or API_KEY   Your HuggingFace or API key
   API_BASE_URL          LLM endpoint (default: HF router)
-  MODEL_NAME            Model to use (default: openai/gpt-oss-120b)
+  MODEL_NAME            Model to use (default: gpt-4.1-mini)
   ENV_URL               Environment server URL (default: localhost:7860)
 
 RUN LOCALLY:
@@ -37,7 +37,7 @@ from openai import OpenAI
 
 API_KEY      = os.getenv("API_KEY") or os.getenv("HF_TOKEN")
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
-MODEL_NAME   = os.getenv("MODEL_NAME", "openai/gpt-oss-120b")
+MODEL_NAME   = os.getenv("MODEL_NAME", "gpt-4.1-mini")
 ENV_URL      = os.getenv("ENV_URL", "https://khushvi-sre-incident-response.hf.space")
 BENCHMARK    = "sre-incident-response"
 
