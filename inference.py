@@ -35,14 +35,11 @@ from typing import Dict, List, Optional, Any
 from openai import OpenAI
 
 
-HF_TOKEN = os.getenv("HF_TOKEN")
-if HF_TOKEN is None:
-    raise ValueError("HF_TOKEN environment variable is required")
+IMAGE_NAME = os.getenv("IMAGE_NAME") # If you are using docker image 
 
-API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
-MODEL_NAME   = os.getenv("MODEL_NAME", "openai/gpt-oss-20b")
-ENV_URL      = os.getenv("ENV_URL", "https://khushvi-sre-incident-response.hf.space")
-BENCHMARK    = "sre-incident-response"
+API_KEY = os.environ["API_KEY"]
+API_BASE_URL = os.environ["API_BASE_URL"]
+MODEL_NAME = os.environ.get("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
 
 MAX_STEPS   = 15     # hard cap per episode
 TEMPERATURE = 0.2    # low for deterministic reasoning
@@ -416,8 +413,8 @@ def run_episode(client: OpenAI, task_id: int) -> Dict[str, Any]:
 def main() -> None:
     if API_KEY is None:
         raise ValueError("API_KEY environment variable is required")
-    client = OpenAI(base_url=API_BASE_URL, api_key=HF_TOKEN)
-
+    client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
+    
     for task_id in [1, 2, 3]:
         try:
             run_episode(client, task_id)
