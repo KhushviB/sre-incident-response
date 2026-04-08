@@ -399,16 +399,10 @@ def run_episode(client: OpenAI, task_id: int) -> Dict[str, Any]:
     }
 
 def main() -> None:
-    # Use ONLY the validator-injected variables — no fallback
-    api_base_url = os.environ.get("API_BASE_URL", "")
-    api_key      = os.environ.get("API_KEY", "")
-
-    if not api_base_url or not api_key:
-        # no proxy provided — run with smart fallback only (no LLM calls)
-        api_base_url = API_BASE_URL
-        api_key      = API_KEY
-
-    client = OpenAI(base_url=api_base_url, api_key=api_key)
+    client = OpenAI(
+        base_url=os.environ["API_BASE_URL"],
+        api_key=os.environ["API_KEY"]
+    )
 
     for task_id in [1, 2, 3]:
         try:
