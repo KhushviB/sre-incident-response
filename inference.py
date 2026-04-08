@@ -35,10 +35,10 @@ from typing import Dict, List, Optional, Any
 from openai import OpenAI
 
 
-API_KEY      = os.environ.get("API_KEY", os.environ.get("HF_TOKEN", "dummy-key"))
-API_BASE_URL = os.environ.get("API_BASE_URL", "https://router.huggingface.co/v1")
-MODEL_NAME   = os.environ.get("MODEL_NAME",   "openai/gpt-oss-20b")
-ENV_URL      = os.environ.get("ENV_URL",      "https://khushvi-sre-incident-response.hf.space")
+API_KEY      = os.environ.get("API_KEY", "")
+API_BASE_URL = os.environ.get("API_BASE_URL", "")
+MODEL_NAME   = os.environ.get("MODEL_NAME", "openai/gpt-oss-20b")
+ENV_URL      = os.environ.get("ENV_URL", "https://khushvi-sre-incident-response.hf.space")
 BENCHMARK    = "sre-incident-response"
 
 MAX_STEPS   = 15     # hard cap per episode
@@ -399,10 +399,7 @@ def run_episode(client: OpenAI, task_id: int) -> Dict[str, Any]:
     }
 
 def main() -> None:
-    client = OpenAI(
-        base_url=os.environ["API_BASE_URL"],
-        api_key=os.environ["API_KEY"]
-    )
+    client = OpenAI(base_url=os.environ["API_BASE_URL"], api_key=os.environ["API_KEY"])
 
     for task_id in [1, 2, 3]:
         try:
