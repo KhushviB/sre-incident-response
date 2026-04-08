@@ -312,6 +312,14 @@ def run_episode(client: OpenAI, task_id: int) -> Dict[str, Any]:
     task_name = task_names.get(task_id, f"task-{task_id}")
 
     log_start(task=task_name, model=MODEL_NAME)
+    try:
+        _warm = client.chat.completions.create(
+            model=MODEL_NAME,
+            messages=[{"role": "user", "content": "Say: read_logs"}],
+            max_tokens=10,
+        )
+    except Exception:
+        pass
 
     try:
         reset_data = env_reset(task_id)
@@ -406,7 +414,8 @@ def main() -> None:
         try:
             run_episode(client, task_id)
         except Exception as e:
-            task_name = TASK_NAMES.get(task_id, f"task-{task_id}")
+            _names = {1: "memory-leak-fix", 2: "cascading-500-errors", 3: "multi-failure-recovery"}
+            task_name = _names.get(task_id, f"task-{task_id}")
             log_start(task=task_name, model=MODEL_NAME)
             log_step(1, '{"action_type":"read_logs"}', 0.0, True, str(e))
             log_end(False, 1, 0.0, [0.0])
