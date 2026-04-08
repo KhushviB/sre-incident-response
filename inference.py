@@ -37,9 +37,9 @@ from openai import OpenAI
 
 IMAGE_NAME = os.getenv("IMAGE_NAME") # If you are using docker image 
 
-API_KEY = os.environ["API_KEY"]
-API_BASE_URL = os.environ["API_BASE_URL"]
-MODEL_NAME = os.environ.get("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
+API_BASE_URL = os.getenv("API_BASE_URL") or "https://router.huggingface.co/v1"
+API_KEY = os.getenv("API_KEY") or os.getenv("HF_TOKEN") or os.getenv("OPENAI_API_KEY")
+MODEL_NAME = os.getenv("MODEL_NAME") or "Qwen/Qwen3-32B"
 
 MAX_STEPS   = 15     # hard cap per episode
 TEMPERATURE = 0.2    # low for deterministic reasoning
@@ -414,7 +414,7 @@ def main() -> None:
     if API_KEY is None:
         raise ValueError("API_KEY environment variable is required")
     client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
-    
+
     for task_id in [1, 2, 3]:
         try:
             run_episode(client, task_id)
