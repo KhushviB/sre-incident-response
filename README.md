@@ -292,14 +292,14 @@ docker run -p 7860:7860 sre-incident-response
 |----------|---------|-------------|
 | `HF_TOKEN` or `API_KEY` | — | Your HuggingFace / API key (required) |
 | `API_BASE_URL` | `https://router.huggingface.co/v1` | LLM endpoint |
-| `MODEL_NAME` | `openai/gpt-oss-20b` | Model identifier |
+| `MODEL_NAME` | `gpt-4.1-mini` | Model identifier |
 | `ENV_URL` | `http://localhost:7860` | Environment server URL |
 
 ---
 
 ## Baseline Scores
 
-Baseline run using `openai/gpt-oss-20b` via HuggingFace router:
+Baseline run using `gpt-4.1-mini` via HuggingFace router:
 
 | Task | Name | Score |
 |------|------|-------|
