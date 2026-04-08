@@ -35,10 +35,10 @@ from typing import Dict, List, Optional, Any
 from openai import OpenAI
 
 
-API_KEY      = os.getenv("HF_TOKEN") or os.getenv("API_KEY")
-API_BASE_URL = os.getenv("API_BASE_URL") or "https://router.huggingface.co/v1"
-MODEL_NAME   = os.getenv("MODEL_NAME")   or "openai/gpt-oss-20b"
-ENV_URL      = os.getenv("ENV_URL")      or "https://khushvi-sre-incident-response.hf.space"
+API_KEY      = os.getenv("API_KEY") or os.getenv("HF_TOKEN")
+API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
+MODEL_NAME   = os.getenv("MODEL_NAME", "openai/gpt-oss-20b")
+ENV_URL      = os.getenv("ENV_URL", "https://khushvi-sre-incident-response.hf.space")
 BENCHMARK    = "sre-incident-response"
 
 MAX_STEPS   = 15     # hard cap per episode
@@ -312,14 +312,6 @@ def run_episode(client: OpenAI, task_id: int) -> Dict[str, Any]:
     task_name = task_names.get(task_id, f"task-{task_id}")
 
     log_start(task=task_name, model=MODEL_NAME)
-    try:
-        _warm = client.chat.completions.create(
-            model=MODEL_NAME,
-            messages=[{"role": "user", "content": "Say: read_logs"}],
-            max_tokens=10,
-        )
-    except Exception:
-        pass
 
     try:
         reset_data = env_reset(task_id)
@@ -399,7 +391,8 @@ def run_episode(client: OpenAI, task_id: int) -> Dict[str, Any]:
     }
 
 def main() -> None:
-    client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
+    api_key = API_KEY or "dummy-key"
+    client = OpenAI(base_url=API_BASE_URL, api_key=api_key)
 
     for task_id in [1, 2, 3]:
         try:
