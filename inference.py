@@ -35,7 +35,10 @@ from typing import Dict, List, Optional, Any
 from openai import OpenAI
 
 
-API_KEY      = os.getenv("API_KEY") or os.getenv("HF_TOKEN")
+HF_TOKEN = os.getenv("HF_TOKEN")
+if HF_TOKEN is None:
+    raise ValueError("HF_TOKEN environment variable is required")
+
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
 MODEL_NAME   = os.getenv("MODEL_NAME", "gpt-4.1-mini")
 ENV_URL      = os.getenv("ENV_URL", "https://khushvi-sre-incident-response.hf.space")
@@ -59,12 +62,10 @@ def log_step(step: int, action: str, reward: float,
     )
 
 
-def log_end(success: bool, steps: int,
-            score: float, rewards: List[float]) -> None:
+def log_end(success: bool, steps: int, rewards: List[float]) -> None:
     rewards_str = ",".join(f"{r:.2f}" for r in rewards)
     print(
-        f"[END] success={str(success).lower()} steps={steps} "
-        f"score={score:.2f} rewards={rewards_str}",
+        f"[END] success={str(success).lower()} steps={steps} rewards={rewards_str}",
         flush=True,
     )
 
@@ -222,7 +223,7 @@ def get_action(client: OpenAI, step: int, obs: Dict[str, Any],
                 model=MODEL_NAME,
                 messages=[
                     {"role": "system", "content": SYSTEM_PROMPT},
-                    {"role": "user",   "content": prompt},
+                    {"role": "user", "content": prompt},
                 ],
                 temperature=TEMPERATURE,
                 max_tokens=MAX_TOKENS,
@@ -401,7 +402,7 @@ def run_episode(client: OpenAI, task_id: int) -> Dict[str, Any]:
             break
 
     score = max(rewards) if rewards else 0.0
-    log_end(success=success, steps=steps_taken, score=score, rewards=rewards)
+    log_end(success=success, steps=steps_taken, rewards=rewards)
 
     return {
         "task_id":   task_id,
@@ -413,8 +414,9 @@ def run_episode(client: OpenAI, task_id: int) -> Dict[str, Any]:
     }
 
 def main() -> None:
-    api_key = API_KEY or "dummy-key"
-    client = OpenAI(base_url=API_BASE_URL, api_key=api_key)
+    if API_KEY is None:
+        raise ValueError("API_KEY environment variable is required")
+    client = OpenAI(base_url=API_BASE_URL, api_key=HF_TOKEN)
 
     for task_id in [1, 2, 3]:
         try:
