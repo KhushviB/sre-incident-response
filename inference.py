@@ -412,5 +412,7 @@ if __name__ == "__main__":
     try:
         main()
     except Exception as e:
-        print(f"[END] success=false steps=0 score=0.000 rewards=", flush=True)
+        print(f"[START] task=memory-leak-fix env=sre-incident-response model={MODEL_NAME}", flush=True)
+        print(f"[STEP] step=1 action={{\"action_type\":\"read_logs\"}} reward=0.00 done=true error={e}", flush=True)
+        print(f"[END] success=false steps=1 score=0.000 rewards=0.00", flush=True)
         sys.exit(0)
