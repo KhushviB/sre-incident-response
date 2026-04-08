@@ -252,7 +252,7 @@ runtime:
 
 # ── Baseline scores (reproduced by inference.py) ──────────────────────────────
 baseline:
-  model: "gpt-4.1-mini"
+  model: "openai/gpt-oss-20b"
   scores:
     task_1_easy:   1.00     # filled in after running inference.py
     task_2_medium: 1.00     # filled in after running inference.py
