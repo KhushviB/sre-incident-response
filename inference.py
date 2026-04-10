@@ -19,7 +19,7 @@ from env.models import Action
 # =======================================================================
 # The validator injects these specific environment variables
 api_base   = os.environ.get("API_BASE_URL", "https://router.huggingface.co/v1")
-api_key    = os.environ.get("API_KEY") or os.environ.get("HF_TOKEN") or "dummy-key"
+api_key    = os.environ.get("API_KEY") or os.environ.get("HF_TOKEN") or os.environ.get("OPENAI_API_KEY") or "dummy-key"
 model_name = os.environ.get("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
 
 
