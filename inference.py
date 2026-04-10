@@ -15,7 +15,7 @@ from env.environment import SREEnvironment
 from env.models import Action
 
 # =======================================================================
-# 1. PRE-SUBMISSION CHECKLIST VARIABLES (Phase 1 AST Parser expects this)
+# 1. PRE-SUBMISSION CHECKLIST VARIABLES
 # =======================================================================
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
 MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
@@ -23,8 +23,7 @@ HF_TOKEN = os.getenv("HF_TOKEN")
 LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME")
 
 # =======================================================================
-# 2. SAFETY INJECTIONS 
-# (Prevents KeyError locally while allowing Phase 2 proxy to inject keys)
+# 2. INJECT REQUIRED KEYS
 # =======================================================================
 if "API_BASE_URL" not in os.environ:
     os.environ["API_BASE_URL"] = API_BASE_URL
@@ -80,43 +79,51 @@ def log_start(task: str, env: str, model: str) -> None:
 
 def log_step(step: int, action: str, reward: float, done: bool, error: Optional[str]) -> None:
     error_val = error if error else "null"
-    done_val = str(done).lower()
-    print(f"[STEP] step={step} action={action} reward={reward:.2f} done={done_val} error={error_val}", flush=True)
+    print(f"[STEP] step={step} action={action} reward={reward:.2f} done={str(done).lower()} error={error_val}", flush=True)
 
 def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> None:
     rewards_str = ",".join(f"{r:.2f}" for r in rewards)
     print(f"[END] success={str(success).lower()} steps={steps} score={score:.3f} rewards={rewards_str}", flush=True)
 
+# Bulletproof Dictionary Extraction
 def _obs_to_dict(obs) -> Dict[str, Any]:
-    return {
-        "message": obs.message,
-        "nginx_status": obs.nginx_status,
-        "memory_usage": obs.memory_usage,
-        "disk_usage": obs.disk_usage,
-        "db_status": obs.db_status,
-        "http_status": obs.http_status,
-        "processes": [{"pid": p.pid, "name": p.name, "cpu_percent": p.cpu_percent, "mem_percent": p.mem_percent, "status": p.status} for p in obs.processes],
-        "logs": obs.logs,
-        "env_vars": obs.env_vars,
-        "config": obs.config,
-        "step_number": obs.step_number,
-        "task_id": obs.task_id,
-    }
+    if isinstance(obs, dict): return obs
+    if hasattr(obs, "model_dump"): return obs.model_dump()
+    if hasattr(obs, "dict"): return obs.dict()
+    return vars(obs)
+
+def _extract_reward(reward_obj) -> tuple[float, bool]:
+    if isinstance(reward_obj, dict):
+        return float(reward_obj.get("value", 0.0)), bool(reward_obj.get("is_improvement", False))
+    elif hasattr(reward_obj, "value"):
+        return float(reward_obj.value), getattr(reward_obj, "is_improvement", False)
+    return float(reward_obj), False
 
 def build_prompt(step: int, obs: Dict[str, Any], last_reward: float, last_improved: bool, history: List[str]) -> str:
-    procs = "\n".join(f"  pid={p['pid']} name={p['name']} cpu={p['cpu_percent']}% mem={p['mem_percent']}%" for p in obs.get("processes", [])) or "  (empty)"
-    envs = "\n".join(f"  {k}={v}" for k, v in obs.get("env_vars", {}).items()) or "  (empty)"
-    cfgs = "\n".join(f"  {k}={v}" for k, v in obs.get("config", {}).items()) or "  (empty)"
+    # Bulletproof String Building
+    procs_list = obs.get("processes") or []
+    procs = "\n".join(
+        f"  pid={p.get('pid')} name={p.get('name')} cpu={p.get('cpu_percent')}% mem={p.get('mem_percent')}%" 
+        if isinstance(p, dict) else 
+        f"  pid={getattr(p, 'pid', '')} name={getattr(p, 'name', '')} cpu={getattr(p, 'cpu_percent', '')}% mem={getattr(p, 'mem_percent', '')}%"
+        for p in procs_list
+    ) or "  (empty)"
+
+    envs = "\n".join(f"  {k}={v}" for k, v in (obs.get("env_vars") or {}).items()) or "  (empty)"
+    cfgs = "\n".join(f"  {k}={v}" for k, v in (obs.get("config") or {}).items()) or "  (empty)"
     hist = "\n".join(f"  {h}" for h in history[-6:]) if history else "  (none yet)"
 
     note = "Last action IMPROVED the score — keep going." if last_improved else "Last action did NOT improve score — try something DIFFERENT."
 
     warnings = []
-    if obs.get("env_vars", {}).get("APP_MODE") == "debug": warnings.append("  WARNING: APP_MODE=debug should be production")
-    if obs.get("env_vars", {}).get("APP_ENV") == "staging": warnings.append("  WARNING: APP_ENV=staging should be production")
-    if "db-old" in obs.get("env_vars", {}).get("DB_HOST", ""): warnings.append("  WARNING: DB_HOST is wrong, should be db.internal")
-    if obs.get("config", {}).get("nginx_port") not in ("80", "443", "8080", None): warnings.append("  WARNING: nginx_port looks wrong")
-    if obs.get("config", {}).get("worker_count") not in ("8", None): warnings.append("  WARNING: worker_count should be 8")
+    env_vars = obs.get("env_vars") or {}
+    config = obs.get("config") or {}
+    
+    if env_vars.get("APP_MODE") == "debug": warnings.append("  WARNING: APP_MODE=debug should be production")
+    if env_vars.get("APP_ENV") == "staging": warnings.append("  WARNING: APP_ENV=staging should be production")
+    if "db-old" in env_vars.get("DB_HOST", ""): warnings.append("  WARNING: DB_HOST is wrong, should be db.internal")
+    if config.get("nginx_port") not in ("80", "443", "8080", 80, 443, 8080, None): warnings.append("  WARNING: nginx_port looks wrong")
+    if config.get("worker_count") not in ("8", 8, None): warnings.append("  WARNING: worker_count should be 8")
     if obs.get("disk_usage", 0) > 80: warnings.append(f"  WARNING: disk {obs['disk_usage']}% is full — run clear_disk")
     if obs.get("memory_usage", 0) > 70: warnings.append(f"  WARNING: memory {obs['memory_usage']}% is high — kill the biggest process")
 
@@ -160,7 +167,7 @@ def get_action(client: OpenAI, step: int, obs: Dict[str, Any], last_reward: floa
     for attempt in range(3):
         try:
             completion = client.chat.completions.create(
-                model=os.environ["MODEL_NAME"], # STRICT COMPLIANCE
+                model=os.environ["MODEL_NAME"],
                 messages=[
                     {"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": prompt},
@@ -193,13 +200,8 @@ def run_episode(client: OpenAI, task_id: int) -> None:
     
     log_start(task=task_name, env=BENCHMARK, model=os.environ["MODEL_NAME"])
     
-    try:
-        result = env.reset(task_id=task_id)
-        obs_dict = _obs_to_dict(result.observation)
-    except Exception as e:
-        log_step(1, '{"action_type":"read_logs"}', 0.0, True, str(e))
-        log_end(success=False, steps=1, score=0.0, rewards=[0.0])
-        return
+    result = env.reset(task_id=task_id)
+    obs_dict = _obs_to_dict(result.observation)
 
     rewards = []
     history = []
@@ -215,19 +217,10 @@ def run_episode(client: OpenAI, task_id: int) -> None:
         action_dict, error = get_action(client, step, obs_dict, last_reward, last_improved, history)
 
         try:
-            action_model = Action(
-                action_type=action_dict.get("action_type", "read_logs"),
-                pid=action_dict.get("pid"),
-                service=action_dict.get("service"),
-                config_key=action_dict.get("config_key"),
-                config_value=action_dict.get("config_value"),
-                env_key=action_dict.get("env_key"),
-                env_value=action_dict.get("env_value"),
-            )
+            action_model = Action(**action_dict)
             res = env.step(action_model)
             obs_dict = _obs_to_dict(res.observation)
-            reward_val = res.reward.value
-            last_improved = res.reward.is_improvement
+            reward_val, last_improved = _extract_reward(res.reward)
             done = res.done
         except Exception as e:
             reward_val = last_reward
@@ -251,24 +244,14 @@ def run_episode(client: OpenAI, task_id: int) -> None:
     log_end(success=success, steps=steps_taken, score=score, rewards=rewards)
 
 def main() -> None:
-    try:
-        # =======================================================================
-        # STRICT COMPLIANCE: EXACT MATCH TO FEEDBACK INSTRUCTIONS
-        # =======================================================================
-        client = OpenAI(
-            base_url=os.environ["API_BASE_URL"],
-            api_key=os.environ["API_KEY"]
-        )
-        
-        for task_id in [1, 2, 3]:
-            run_episode(client, task_id)
-            
-    except Exception as e:
-        err_str = str(e).replace('\n', ' ')
-        print(f"[START] task=task-1 env={BENCHMARK} model={os.environ.get('MODEL_NAME', 'Qwen')}", flush=True)
-        print(f"[STEP] step=1 action={{\"action_type\":\"read_logs\"}} reward=0.00 done=true error={err_str}", flush=True)
-        print(f"[END] success=false steps=1 score=0.000 rewards=0.00", flush=True)
-        sys.exit(0)
+    # EXACT LITERAL MATCH FOR PHASE 2 PARSER
+    client = OpenAI(
+        base_url=os.environ["API_BASE_URL"],
+        api_key=os.environ["API_KEY"]
+    )
+    
+    for task_id in [1, 2, 3]:
+        run_episode(client, task_id)
 
 if __name__ == "__main__":
     main()
