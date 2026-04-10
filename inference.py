@@ -15,13 +15,19 @@ from env.environment import SREEnvironment
 from env.models import Action
 
 # =======================================================================
-# 1. PHASE 1 STATIC PARSER CHECKLIST
-# These exact lines must exist at the top of the file to pass the checklist
+# EXACT BASE FORMAT AS EXPECTED BY THE HACKATHON VALIDATOR
 # =======================================================================
-API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
-MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
-HF_TOKEN = os.getenv("HF_TOKEN")
-LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME")
+# The validator injects these specific environment variables
+api_base = os.environ.get("API_BASE_URL")
+api_key = os.environ.get("API_KEY")
+model_name = os.environ.get("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
+
+# Initialize client using the injected variables
+client = OpenAI(
+    base_url=api_base,
+    api_key=api_key
+)
+# =======================================================================
 
 BENCHMARK = "sre-incident-response"
 MAX_STEPS = 15
@@ -132,7 +138,7 @@ SERVER CONFIG
 {cfgs}
 
 RECENT LOGS (last 800 chars)
-{obs.get('logs', '')[-800:]}
+{str(obs.get('logs', ''))[-800:]}
 
 ACTION HISTORY
 {hist}
@@ -140,70 +146,63 @@ ACTION HISTORY
 Respond with ONLY a JSON action.
 """).strip()
 
-def get_action(client: OpenAI, step: int, obs: Dict[str, Any], last_reward: float, last_improved: bool, history: List[str]) -> tuple:
+def get_action(step: int, obs: Dict[str, Any], last_reward: float, last_improved: bool, history: List[str]) -> tuple:
     prompt = build_prompt(step, obs, last_reward, last_improved, history)
-    last_error = None
-    
-    active_model = os.environ.get("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
-
-    for attempt in range(3):
-        try:
-            completion = client.chat.completions.create(
-                model=active_model,
-                messages=[
-                    {"role": "system", "content": SYSTEM_PROMPT},
-                    {"role": "user", "content": prompt},
-                ],
-                temperature=TEMPERATURE,
-                max_tokens=MAX_TOKENS,
-                stream=False,
-            )
-            raw = (completion.choices[0].message.content or "").strip()
-            if raw.startswith("```"):
-                raw = raw.split("```")[1]
-                if raw.startswith("json"): raw = raw[4:]
-            raw = raw.strip()
-            
-            if not raw.startswith("{"):
-                start, end = raw.find("{"), raw.rfind("}") + 1
-                if start >= 0 and end > start: raw = raw[start:end]
-
-            return json.loads(raw), None
-
-        except Exception as e:
-            last_error = str(e)
-
-    return {"action_type": "read_logs"}, last_error
-
-def run_episode(client: OpenAI, task_id: int) -> None:
-    env = SREEnvironment()
-    task_names = {1: "memory-leak-fix", 2: "cascading-500-errors", 3: "multi-failure-recovery"}
-    task_name = task_names.get(task_id, f"task-{task_id}")
-    
-    log_start(task=task_name, env=BENCHMARK, model=os.environ.get("MODEL_NAME", "Qwen"))
     
     try:
+        completion = client.chat.completions.create(
+            model=model_name,
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=TEMPERATURE,
+            max_tokens=MAX_TOKENS,
+            stream=False,
+        )
+        raw = (completion.choices[0].message.content or "").strip()
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"): raw = raw[4:]
+        raw = raw.strip()
+        
+        if not raw.startswith("{"):
+            start, end = raw.find("{"), raw.rfind("}") + 1
+            if start >= 0 and end > start: raw = raw[start:end]
+
+        return json.loads(raw), None
+
+    except Exception as e:
+        # We catch LLM errors here ONLY so the loop doesn't completely die on a timeout
+        return {"action_type": "read_logs"}, f"LLM Error: {str(e)}"
+
+def main() -> None:
+    # NO TRY/EXCEPT BLOCKS HERE!
+    # If the environment code fails, let it crash natively so the validator shows us the real Traceback.
+    env = SREEnvironment()
+    
+    for task_id in [1, 2, 3]:
+        task_names = {1: "memory-leak-fix", 2: "cascading-500-errors", 3: "multi-failure-recovery"}
+        task_name = task_names.get(task_id, f"task-{task_id}")
+        
+        log_start(task=task_name, env=BENCHMARK, model=model_name)
+        
         result = env.reset(task_id=task_id)
         obs_dict = _obs_to_dict(result.observation)
-    except Exception as e:
-        log_step(1, '{"action_type":"read_logs"}', 0.0, True, str(e))
-        log_end(success=False, steps=1, score=0.0, rewards=[0.0])
-        return
 
-    rewards = []
-    history = []
-    last_reward = 0.0
-    last_improved = False
-    done = False
-    success = False
-    steps_taken = 0
+        rewards = []
+        history = []
+        last_reward = 0.0
+        last_improved = False
+        done = False
+        success = False
+        steps_taken = 0
 
-    for step in range(1, MAX_STEPS + 1):
-        if done: break
+        for step in range(1, MAX_STEPS + 1):
+            if done: break
 
-        action_dict, error = get_action(client, step, obs_dict, last_reward, last_improved, history)
+            action_dict, error = get_action(step, obs_dict, last_reward, last_improved, history)
 
-        try:
             action_model = Action(
                 action_type=action_dict.get("action_type", "read_logs"),
                 pid=action_dict.get("pid"),
@@ -213,65 +212,28 @@ def run_episode(client: OpenAI, task_id: int) -> None:
                 env_key=action_dict.get("env_key"),
                 env_value=action_dict.get("env_value"),
             )
+            
             res = env.step(action_model)
             obs_dict = _obs_to_dict(res.observation)
             
             reward_val = getattr(res.reward, "value", float(res.reward))
             last_improved = getattr(res.reward, "is_improvement", False)
             done = res.done
-        except Exception as e:
-            reward_val = last_reward
-            last_improved = False
-            error = str(e)
-            done = False
 
-        rewards.append(reward_val)
-        last_reward = reward_val
-        steps_taken = step
-        action_str = json.dumps(action_dict, separators=(",", ":"))
+            rewards.append(reward_val)
+            last_reward = reward_val
+            steps_taken = step
+            action_str = json.dumps(action_dict, separators=(",", ":"))
 
-        log_step(step=step, action=action_str, reward=reward_val, done=done, error=error)
-        history.append(f"step {step}: {action_str} -> reward {reward_val:.2f}")
+            log_step(step=step, action=action_str, reward=reward_val, done=done, error=error)
+            history.append(f"step {step}: {action_str} -> reward {reward_val:.2f}")
 
-        if done:
-            success = reward_val >= 1.0
-            break
+            if done:
+                success = reward_val >= 1.0
+                break
 
-    score = max(rewards) if rewards else 0.0
-    log_end(success=success, steps=steps_taken, score=score, rewards=rewards)
-
-def main() -> None:
-    try:
-        # =======================================================================
-        # 2. PHASE 1 RUNTIME CRASH PREVENTION
-        # We inject fallback strings into os.environ right before initializing
-        # so that if the platform tests it with empty keys, it won't crash!
-        # =======================================================================
-        if not os.environ.get("API_BASE_URL"):
-            os.environ["API_BASE_URL"] = "https://router.huggingface.co/v1"
-            
-        if not os.environ.get("API_KEY"):
-            os.environ["API_KEY"] = os.environ.get("HF_TOKEN") or "dummy_key_to_prevent_crash"
-
-        # =======================================================================
-        # 3. EXACT PHASE 2 REGEX COMPLIANCE (Inside the safety net!)
-        # =======================================================================
-        client = OpenAI(
-            base_url=os.environ["API_BASE_URL"],
-            api_key=os.environ["API_KEY"]
-        )
-        
-        for task_id in [1, 2, 3]:
-            run_episode(client, task_id)
-            
-    except Exception as e:
-        # If anything blows up (like dummy keys failing auth in Phase 1),
-        # we catch it, print fake valid logs, and exit cleanly to pass the check!
-        err_str = str(e).replace('\n', ' ')
-        print(f"[START] task=task-1 env={BENCHMARK} model={os.environ.get('MODEL_NAME', 'Qwen')}", flush=True)
-        print(f"[STEP] step=1 action={{\"action_type\":\"read_logs\"}} reward=0.00 done=true error={err_str}", flush=True)
-        print(f"[END] success=false steps=1 score=0.000 rewards=0.00", flush=True)
-        sys.exit(0)
+        score = max(rewards) if rewards else 0.0
+        log_end(success=success, steps=steps_taken, score=score, rewards=rewards)
 
 if __name__ == "__main__":
     main()
