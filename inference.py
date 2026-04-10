@@ -23,11 +23,6 @@ api_key    = os.environ.get("API_KEY") or os.environ.get("HF_TOKEN") or os.envir
 model_name = os.environ.get("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
 
 
-# Initialize client using the injected variables
-client = OpenAI(
-    base_url=api_base,
-    api_key=api_key
-)
 # =======================================================================
 
 BENCHMARK = "sre-incident-response"
@@ -147,7 +142,7 @@ ACTION HISTORY
 Respond with ONLY a JSON action.
 """).strip()
 
-def get_action(step: int, obs: Dict[str, Any], last_reward: float, last_improved: bool, history: List[str]) -> tuple:
+def get_action(client: OpenAI, step: int, obs: Dict[str, Any], last_reward: float, last_improved: bool, history: List[str]) -> tuple:
     prompt = build_prompt(step, obs, last_reward, last_improved, history)
     
     try:
@@ -178,8 +173,7 @@ def get_action(step: int, obs: Dict[str, Any], last_reward: float, last_improved
         return {"action_type": "read_logs"}, f"LLM Error: {str(e)}"
 
 def main() -> None:
-    # NO TRY/EXCEPT BLOCKS HERE!
-    # If the environment code fails, let it crash natively so the validator shows us the real Traceback.
+    client = OpenAI(base_url=api_base, api_key=api_key)
     env = SREEnvironment()
     
     for task_id in [1, 2, 3]:
@@ -202,7 +196,7 @@ def main() -> None:
         for step in range(1, MAX_STEPS + 1):
             if done: break
 
-            action_dict, error = get_action(step, obs_dict, last_reward, last_improved, history)
+            action_dict, error = get_action(client, step, obs_dict, last_reward, last_improved, history)
 
             action_model = Action(
                 action_type=action_dict.get("action_type", "read_logs"),
