@@ -18,9 +18,10 @@ from env.models import Action
 # EXACT BASE FORMAT AS EXPECTED BY THE HACKATHON VALIDATOR
 # =======================================================================
 # The validator injects these specific environment variables
-api_base = os.environ.get("API_BASE_URL")
-api_key = os.environ.get("API_KEY")
+api_base   = os.environ.get("API_BASE_URL", "https://router.huggingface.co/v1")
+api_key    = os.environ.get("API_KEY") or os.environ.get("HF_TOKEN") or "dummy-key"
 model_name = os.environ.get("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
+
 
 # Initialize client using the injected variables
 client = OpenAI(
