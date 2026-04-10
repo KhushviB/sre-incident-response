@@ -173,7 +173,13 @@ def get_action(client: OpenAI, step: int, obs: Dict[str, Any], last_reward: floa
         return {"action_type": "read_logs"}, f"LLM Error: {str(e)}"
 
 def main() -> None:
-    client = OpenAI(base_url=api_base, api_key=api_key)
+    try:
+        client = OpenAI(base_url=api_base, api_key=api_key)
+    except Exception:
+        try:
+            client = OpenAI(base_url=api_base, api_key=api_key, http_client=None)
+        except Exception:
+            client = OpenAI(api_key=api_key)
     env = SREEnvironment()
     
     for task_id in [1, 2, 3]:
