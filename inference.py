@@ -233,7 +233,8 @@ def main() -> None:
                 success = reward_val >= 1.0
                 break
 
-        score = max(rewards) if rewards else 0.0
+        score = sum(rewards) / len(rewards) if rewards else 0.0
+        score = max(1e-6, min(score, 1 - 1e-6))
         log_end(success=success, steps=steps_taken, score=score, rewards=rewards)
 
 if __name__ == "__main__":
