@@ -217,7 +217,7 @@ def main() -> None:
             res = env.step(action_model)
             obs_dict = _obs_to_dict(res.observation)
             
-            reward_val = getattr(res.reward, "value", float(res.reward))
+            reward_val = res.reward.value
             last_improved = getattr(res.reward, "is_improvement", False)
             done = res.done
 
